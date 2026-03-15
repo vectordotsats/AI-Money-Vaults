@@ -10,8 +10,10 @@ contract DeployAIVault is Script {
     MockUSDC public usdc;
 
     function run() public returns (AIVault, MockUSDC) {
-        aiVault = new AIVault();
+        vm.startBroadcast();
         usdc = new MockUSDC();
+        aiVault = new AIVault(usdc);
+        vm.stopBroadcast();
 
         return (aiVault, usdc);
     }
