@@ -1,13 +1,12 @@
-// SPDX: Liscense-Identifier: MIT
+// SPDX: License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 
-contract AIVault is ERC4626, Ownable, ReentrancyGuard {
+contract AIVault is ERC4626, ReentrancyGuard {
     // Track when each user deposits
     mapping(address => uint256) public depositTimestamps;
 
