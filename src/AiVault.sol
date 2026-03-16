@@ -17,14 +17,9 @@ contract AIVault is ERC4626, ReentrancyGuard {
     error ZeroDepositsNotAllowed();
     error WrongReceiverAddress();
 
-    constructor(
-        IERC20 _asset
-    ) ERC4626(_asset) ERC20("AIVault Shares", "aiVLT") {}
+    constructor(IERC20 _asset) ERC4626(_asset) ERC20("AIVault Shares", "aiVLT") {}
 
-    function deposit(
-        uint256 amount,
-        address receiver
-    ) public override nonReentrant returns (uint256 shares) {
+    function deposit(uint256 amount, address receiver) public override nonReentrant returns (uint256 shares) {
         if (amount <= 0) {
             revert ZeroDepositsNotAllowed();
         }
