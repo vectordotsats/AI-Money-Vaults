@@ -38,4 +38,38 @@ contract AIVaultTest is Test {
         assertEq(shares, INITIAL_BALANCE);
         assertEq(usdc.balanceOf(alice), 0);
     }
+
+    function testDepositUpdatesTimestamp() public {
+        vm.startPrank(alice);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        aiVault.deposit(INITIAL_BALANCE, alice);
+        vm.stopPrank();
+
+        assertEq(aiVault.depositTimestamps(alice), block.timestamp);
+    }
+
+    function test_DepositUpdatesTotalDeposits() public {
+        vm.startPrank(alice);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        aiVault.deposit(INITIAL_BALANCE, alice);
+        vm.stopPrank();
+
+        assertEq(aiVault.totalDeposits(), INITIAL_BALANCE);
+    }
+
+    function testZeroDepositsFails() public {
+        vm.startPrank(alice);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        vm.expectRevert(AIVault.ZeroDepositsNotAllowed.selector);
+        aiVault.deposit(0, alice);
+        vm.stopPrank();
+    }
+
+    function testWrongReceiverAddressFails() public {
+        vm.startPrank(alice);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        vm.expectRevert(AIVault.WrongReceiverAddress.selector);
+        aiVault.deposit(INITIAL_BALANCE, address(0));
+        vm.stopPrank();
+    }
 }

@@ -13,6 +13,10 @@ contract AIVault is ERC4626, ReentrancyGuard {
     // Track the total deposits in the vault
     uint256 public totalDeposits;
 
+    // Errors
+    error ZeroDepositsNotAllowed();
+    error WrongReceiverAddress();
+
     constructor(
         IERC20 _asset
     ) ERC4626(_asset) ERC20("AIVault Shares", "aiVLT") {}
@@ -21,6 +25,13 @@ contract AIVault is ERC4626, ReentrancyGuard {
         uint256 amount,
         address receiver
     ) public override nonReentrant returns (uint256 shares) {
+        if (amount <= 0) {
+            revert ZeroDepositsNotAllowed();
+        }
+        if (receiver == address(0)) {
+            revert WrongReceiverAddress();
+        }
+
         depositTimestamps[receiver] = block.timestamp;
         totalDeposits += amount;
         shares = super.deposit(amount, receiver);
