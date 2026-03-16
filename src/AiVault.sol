@@ -13,14 +13,24 @@ contract AIVault is ERC4626, ReentrancyGuard {
     // Track the total deposits in the vault
     uint256 public totalDeposits;
 
+    // Events
+    event Deposit(address indexed user, uint256 amount, uint256 shares);
+    event Withdraw(address indexed user, uint256 amount, uint256 shares);
+
     // Errors
     error ZeroDepositsNotAllowed();
+    error ZeroWithdrawalsNotAllowed();
     error WrongReceiverAddress();
 
-    constructor(IERC20 _asset) ERC4626(_asset) ERC20("AIVault Shares", "aiVLT") {}
+    constructor(
+        IERC20 _asset
+    ) ERC4626(_asset) ERC20("AIVault Shares", "aiVLT") {}
 
-    function deposit(uint256 amount, address receiver) public override nonReentrant returns (uint256 shares) {
-        if (amount <= 0) {
+    function deposit(
+        uint256 amount,
+        address receiver
+    ) public override nonReentrant returns (uint256 shares) {
+        if (amount == 0) {
             revert ZeroDepositsNotAllowed();
         }
         if (receiver == address(0)) {
@@ -30,6 +40,8 @@ contract AIVault is ERC4626, ReentrancyGuard {
         depositTimestamps[receiver] = block.timestamp;
         totalDeposits += amount;
         shares = super.deposit(amount, receiver);
+
+        emit Deposit(receiver, amount, shares);
         return shares;
     }
 
@@ -39,5 +51,26 @@ contract AIVault is ERC4626, ReentrancyGuard {
         } else {
             return block.timestamp - depositTimestamps[user];
         }
+    }
+
+    // @notice User is allowedto withraw thier funds any time they chose, but the longer they stay in the vault, the more rewards they will earn(though rewards are not implemented in this version).
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address owner
+    ) public override nonReentrant returns (uint256 shares) {
+        if (receiver == address(0)) {
+            revert WrongReceiverAddress();
+        }
+        if (assets == 0) {
+            revert ZeroWithdrawalsNotAllowed();
+        }
+        // Reset the user's deposit timestamp when they withdraw, so they don't earn rewards for the time they were in the vault before withrawing.
+        depositTimestamps[owner] = 0;
+        totalDeposits -= assets;
+        shares = super.withdraw(assets, receiver, owner);
+        emit Withdraw(receiver, assets, shares);
+
+        return shares;
     }
 }

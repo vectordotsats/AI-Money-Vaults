@@ -16,6 +16,8 @@ contract AIVaultTest is Test {
 
     uint256 public constant INITIAL_BALANCE = 1000e18;
 
+    // uint256 public constant TEST_AMOUNT = 100e18;
+
     function setUp() public {
         DeployAIVault deployer = new DeployAIVault();
         (aiVault, usdc) = deployer.run();
@@ -71,5 +73,84 @@ contract AIVaultTest is Test {
         vm.expectRevert(AIVault.WrongReceiverAddress.selector);
         aiVault.deposit(INITIAL_BALANCE, address(0));
         vm.stopPrank();
+    }
+
+    ////////////////////////
+    //// Withdraw Test /////
+    ////////////////////////
+
+    function testUserCanWithdraw() public {
+        vm.startPrank(alice);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        aiVault.deposit(INITIAL_BALANCE, alice);
+
+        uint256 shares = aiVault.balanceOf(alice);
+        aiVault.withdraw(shares, alice, alice);
+        vm.stopPrank();
+
+        assertEq(aiVault.balanceOf(alice), 0);
+        assertEq(usdc.balanceOf(alice), shares);
+    }
+
+    function testUserCannotWithdrawOnBehalfOfAnother() public {
+        vm.startPrank(alice);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        aiVault.deposit(INITIAL_BALANCE, alice);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        aiVault.deposit(INITIAL_BALANCE, bob);
+        vm.expectRevert();
+        aiVault.withdraw(INITIAL_BALANCE, bob, alice);
+        vm.stopPrank();
+    }
+
+    function testUserCannotWithdrawMoreThanDeposited() public {
+        vm.startPrank(alice);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        aiVault.deposit(INITIAL_BALANCE, alice);
+
+        vm.expectRevert();
+        aiVault.withdraw(INITIAL_BALANCE + 1e18, alice, alice);
+        vm.stopPrank();
+    }
+
+    function test_WithdrawUpdatesTotalDeposits() public {
+        vm.startPrank(alice);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        aiVault.deposit(INITIAL_BALANCE, alice);
+
+        aiVault.withdraw(INITIAL_BALANCE, alice, alice);
+        vm.stopPrank();
+
+        assertEq(aiVault.totalDeposits(), 0);
+    }
+
+    function testZeroWithrawalsFails() public {
+        vm.startPrank(alice);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        vm.expectRevert();
+        aiVault.withdraw(0, alice, alice);
+        vm.stopPrank();
+    }
+
+    function testWrongReceiverAddressFailsOnWithdrawals() public {
+        vm.startPrank(alice);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        vm.expectRevert(AIVault.WrongReceiverAddress.selector);
+        aiVault.withdraw(INITIAL_BALANCE, address(0), alice);
+        vm.stopPrank();
+    }
+
+    function testWithdrawUpdatesTimestamp() public {
+        vm.startPrank(alice);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        aiVault.deposit(INITIAL_BALANCE, alice);
+
+        aiVault.withdraw(INITIAL_BALANCE, alice, alice);
+        vm.stopPrank();
+
+        assertEq(aiVault.depositTimestamps(alice), 0);
     }
 }
