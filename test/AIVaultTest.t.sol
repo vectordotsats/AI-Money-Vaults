@@ -153,4 +153,46 @@ contract AIVaultTest is Test {
 
         assertEq(aiVault.depositTimestamps(alice), 0);
     }
+
+    //////////////////////////////
+    ///// TimeInVault Tests //////
+    //////////////////////////////
+
+    function testTimeInVaultIsZeroBeforeDeposit() public view {
+        assertEq(aiVault.timeInVault(alice), 0);
+    }
+
+    function test_TimeInVaultIncreasesAfterDeposit() public {
+        vm.startPrank(alice);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        aiVault.deposit(INITIAL_BALANCE, alice);
+        vm.stopPrank();
+
+        // Fast forward 1 day
+        vm.warp(block.timestamp + 1 days);
+
+        assertEq(aiVault.timeInVault(alice), 1 days);
+    }
+
+    //////////////////////////////
+    ///// Multi User Tests  //////
+    /////////////////////////////
+
+    function testMultipleUsersCanDeposit() public {
+        // Alice deposits
+        vm.startPrank(alice);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        aiVault.deposit(INITIAL_BALANCE, alice);
+        vm.stopPrank();
+
+        // Bob deposits
+        vm.startPrank(bob);
+        usdc.approve(address(aiVault), INITIAL_BALANCE);
+        aiVault.deposit(INITIAL_BALANCE, bob);
+        vm.stopPrank();
+
+        assertEq(aiVault.totalDeposits(), INITIAL_BALANCE * 2);
+        assertEq(aiVault.balanceOf(alice), INITIAL_BALANCE);
+        assertEq(aiVault.balanceOf(bob), INITIAL_BALANCE);
+    }
 }
