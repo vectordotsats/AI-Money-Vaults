@@ -1,65 +1,169 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import {
+  useAccount,
+  useReadContract,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+} from "wagmi";
+import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { parseEther, formatEther } from "viem";
+import { useState } from "react";
+import { VAULT_ADDRESS, USDC_ADDRESS } from "./constants/addresses";
+import { VAULT_ABI, ERC20_USDC_ABI } from "./constants/abi";
+
+export default function App() {
+  const { address, isConnected } = useAccount();
+  const [depositAmount, setDepositAmount] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+
+  const { writeContract, data: txHash, isPending } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash: txHash,
+  });
+
+  const { data: totalDeposits } = useReadContract({
+    address: VAULT_ADDRESS,
+    abi: VAULT_ABI,
+    functionName: "totalDeposits",
+  });
+
+  const { data: userShares } = useReadContract({
+    address: VAULT_ADDRESS,
+    abi: VAULT_ABI,
+    functionName: "balanceOf",
+    args: [address!],
+    query: { enabled: !!address },
+  });
+
+  const { data: timeInVault } = useReadContract({
+    address: VAULT_ADDRESS,
+    abi: VAULT_ABI,
+    functionName: "timeInVault",
+    args: [address!],
+    query: { enabled: !!address },
+  });
+
+  async function handleDeposit() {
+    if (!depositAmount) return;
+    const amount = parseEther(depositAmount);
+    writeContract({
+      address: USDC_ADDRESS,
+      abi: ERC20_USDC_ABI,
+      functionName: "approve",
+      args: [VAULT_ADDRESS, amount],
+    });
+  }
+
+  async function handleWithdraw() {
+    if (!withdrawAmount) return;
+    const amount = parseEther(withdrawAmount);
+    writeContract({
+      address: VAULT_ADDRESS,
+      abi: VAULT_ABI,
+      functionName: "withdraw",
+      args: [amount, address!, address!],
+    });
+  }
+
+  const formatSeconds = (seconds: bigint) => {
+    const days = Number(seconds) / 86400;
+    return `${days.toFixed(1)} days`;
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="min-h-screen bg-gray-950 text-white p-8">
+      <div className="max-w-3xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-12">
+          <div>
+            <h1 className="text-2xl font-bold">AIVault</h1>
+            <p className="text-gray-400 text-sm">Deposit. Earn. Withdraw.</p>
+          </div>
+          <ConnectButton />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Vault Stats */}
+        <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="bg-gray-900 rounded-xl p-5">
+            <p className="text-gray-400 text-sm mb-1">Total Deposits</p>
+            <p className="text-xl font-semibold">
+              {totalDeposits ? formatEther(totalDeposits as bigint) : "0"} USDC
+            </p>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-5">
+            <p className="text-gray-400 text-sm mb-1">Your Balance</p>
+            <p className="text-xl font-semibold">
+              {userShares ? formatEther(userShares as bigint) : "0"} aiVLT
+            </p>
+          </div>
+          <div className="bg-gray-900 rounded-xl p-5">
+            <p className="text-gray-400 text-sm mb-1">Time in Vault</p>
+            <p className="text-xl font-semibold">
+              {timeInVault ? formatSeconds(timeInVault as bigint) : "0 days"}
+            </p>
+          </div>
         </div>
-      </main>
-    </div>
+
+        {/* Actions */}
+        {isConnected ? (
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-gray-900 rounded-xl p-6">
+              <h2 className="text-lg font-semibold mb-4">Deposit</h2>
+              <input
+                type="number"
+                placeholder="Amount in USDC"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                className="w-full bg-gray-800 rounded-lg px-4 py-3 mb-4 text-white placeholder-gray-500 outline-none"
+              />
+              <button
+                onClick={handleDeposit}
+                disabled={isPending || isConfirming}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg py-3 font-semibold transition"
+              >
+                {isPending
+                  ? "Approving..."
+                  : isConfirming
+                    ? "Confirming..."
+                    : "Deposit"}
+              </button>
+            </div>
+
+            <div className="bg-gray-900 rounded-xl p-6">
+              <h2 className="text-lg font-semibold mb-4">Withdraw</h2>
+              <input
+                type="number"
+                placeholder="Amount in USDC"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                className="w-full bg-gray-800 rounded-lg px-4 py-3 mb-4 text-white placeholder-gray-500 outline-none"
+              />
+              <button
+                onClick={handleWithdraw}
+                disabled={isPending || isConfirming}
+                className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-lg py-3 font-semibold transition"
+              >
+                {isPending
+                  ? "Processing..."
+                  : isConfirming
+                    ? "Confirming..."
+                    : "Withdraw"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-20 text-gray-500">
+            Connect your wallet to interact with the vault
+          </div>
+        )}
+
+        {isSuccess && (
+          <div className="mt-4 bg-green-900 text-green-300 rounded-xl p-4 text-center">
+            Transaction confirmed successfully
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
