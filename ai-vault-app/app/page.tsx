@@ -68,23 +68,23 @@ export default function App() {
 
   const formatSeconds = (seconds: bigint) => {
     const days = Number(seconds) / 86400;
-    return `${days.toFixed(1)} days`;
+    return `${days.toFixed(1)} days.`;
   };
 
   return (
-    <main className="min-h-screen bg-gray-950 text-white p-8">
-      <div className="max-w-3xl mx-auto">
+    <main className="min-h-screen bg-gray-900 text-white p-8">
+      <div className="w-[90%] mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-12">
           <div>
-            <h1 className="text-2xl font-bold">AIVault</h1>
-            <p className="text-gray-400 text-sm">Deposit. Earn. Withdraw.</p>
+            <h1 className="text-3xl font-bold">AI Vault</h1>
+            <p className="text-gray-400 text-sm">Let Your AI Earn For You</p>
           </div>
           <ConnectButton />
         </div>
 
         {/* Vault Stats */}
-        <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="grid w-[100%] grid-cols-3 mb-8">
           <div className="bg-gray-900 rounded-xl p-5">
             <p className="text-gray-400 text-sm mb-1">Total Deposits</p>
             <p className="text-xl font-semibold">
