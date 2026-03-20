@@ -8,7 +8,7 @@ import {
 } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { parseEther, formatEther } from "viem";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { VAULT_ADDRESS, USDC_ADDRESS } from "./constants/addresses";
 import { VAULT_ABI, ERC20_USDC_ABI } from "./constants/abi";
 
@@ -16,6 +16,11 @@ export default function App() {
   const { address, isConnected } = useAccount();
   const [depositAmount, setDepositAmount] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { writeContract, data: txHash, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
@@ -67,8 +72,19 @@ export default function App() {
   }
 
   const formatSeconds = (seconds: bigint) => {
-    const days = Number(seconds) / 86400;
-    return `${days.toFixed(1)} days.`;
+    const total = Number(seconds);
+    const days = (total / 86400) | 0;
+    const hours = ((total % 86400) / 3600) | 0;
+    const minutes = ((total % 3600) / 60) | 0;
+    const secs = total % 60;
+
+    const parts = [];
+    if (days > 0) parts.push(`${days}d`);
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    if (secs > 0) parts.push(`${secs}s`);
+
+    return parts.length > 0 ? parts.join(" ") : "0s";
   };
 
   return (
@@ -106,7 +122,7 @@ export default function App() {
         </div>
 
         {/* Actions */}
-        {isConnected ? (
+        {!mounted ? null : isConnected ? (
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-gray-900 rounded-xl p-6">
               <h2 className="text-lg font-semibold mb-4">Deposit</h2>
