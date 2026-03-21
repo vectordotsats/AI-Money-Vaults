@@ -28,27 +28,41 @@ export default function App() {
     setMounted(true);
   }, []);
 
-  const { writeContract, data: txHash, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
-    hash: txHash,
-  });
+  // Deposit Flow Hook
+  const {
+    writeContract: writeDeposit,
+    data: depositTxHash,
+    isPending: isDepositPending,
+  } = useWriteContract();
+  const { isLoading: isDepositConfirming, isSuccess: isDepositSuccess } =
+    useWaitForTransactionReceipt({ hash: depositTxHash });
 
+  // Withdraw Flow Hook
+  const {
+    writeContract: writeWithdraw,
+    data: withdrawTxHash,
+    isPending: isWithdrawPending,
+  } = useWriteContract();
+  const { isLoading: isWithdrawConfirming, isSuccess: isWithdrawSuccess } =
+    useWaitForTransactionReceipt({ hash: withdrawTxHash });
+
+  // Deposit two-step flow
   useEffect(() => {
-    if (isSuccess && depositStep === "approve") {
+    if (isDepositSuccess && depositStep === "approve") {
       setDepositStep("deposit");
-      writeContract({
+      writeDeposit({
         address: VAULT_ADDRESS,
         abi: VAULT_ABI,
         functionName: "deposit",
         args: [pendingAmount, address!],
       });
     }
-    if (isSuccess && depositStep === "deposit") {
+    if (isDepositSuccess && depositStep === "deposit") {
       setDepositStep(null);
       setPendingAmount(0n);
       setDepositAmount("");
     }
-  }, [isSuccess, depositStep, pendingAmount, address, writeContract]);
+  }, [isDepositSuccess, depositStep, pendingAmount, address, writeDeposit]);
 
   const { data: totalDeposits } = useReadContract({
     address: VAULT_ADDRESS,
@@ -88,7 +102,7 @@ export default function App() {
     const amount = parseEther(depositAmount);
     setPendingAmount(amount);
     setDepositStep("approve");
-    writeContract({
+    writeDeposit({
       address: USDC_ADDRESS,
       abi: ERC20_USDC_ABI,
       functionName: "approve",
@@ -99,7 +113,7 @@ export default function App() {
   async function handleWithdraw() {
     if (!withdrawAmount) return;
     const amount = parseEther(withdrawAmount);
-    writeContract({
+    writeWithdraw({
       address: VAULT_ADDRESS,
       abi: VAULT_ABI,
       functionName: "withdraw",
@@ -171,12 +185,12 @@ export default function App() {
               />
               <button
                 onClick={handleDeposit}
-                disabled={isPending || isConfirming}
+                disabled={isDepositPending || isDepositConfirming}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg py-3 font-semibold transition"
               >
-                {isPending
+                {isDepositPending
                   ? "Waiting..."
-                  : isConfirming
+                  : isDepositConfirming
                     ? depositStep === "approve"
                       ? "Approving..."
                       : "Depositing..."
@@ -195,16 +209,14 @@ export default function App() {
               />
               <button
                 onClick={handleWithdraw}
-                disabled={isPending || isConfirming}
+                disabled={isWithdrawPending || isWithdrawConfirming}
                 className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-lg py-3 font-semibold transition"
               >
-                {isPending
+                {isWithdrawPending
                   ? "Waiting..."
-                  : isConfirming
-                    ? depositStep === "approve"
-                      ? "Approving..."
-                      : "Depositing..."
-                    : "Deposit"}
+                  : isWithdrawConfirming
+                    ? "Withdrawing..."
+                    : "Withdraw"}
               </button>
             </div>
           </div>
@@ -214,7 +226,7 @@ export default function App() {
           </div>
         )}
 
-        {isSuccess && (
+        {(isDepositSuccess || isWithdrawSuccess) && (
           <div className="mt-4 bg-green-900 text-green-300 rounded-xl p-4 text-center">
             Transaction confirmed successfully
           </div>
