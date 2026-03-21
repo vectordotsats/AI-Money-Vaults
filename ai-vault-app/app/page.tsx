@@ -61,16 +61,29 @@ export default function App() {
       setDepositStep(null);
       setPendingAmount(0n);
       setDepositAmount("");
+      refetchTotal();
+      refetchShares();
+      refetchTime();
     }
   }, [isDepositSuccess, depositStep, pendingAmount, address, writeDeposit]);
 
-  const { data: totalDeposits } = useReadContract({
+  // UseEffect watching withdrawals
+  useEffect(() => {
+    if (isWithdrawSuccess) {
+      setWithdrawAmount("");
+      refetchTotal();
+      refetchShares();
+      refetchTime();
+    }
+  }, [isWithdrawSuccess]);
+
+  const { data: totalDeposits, refetch: refetchTotal } = useReadContract({
     address: VAULT_ADDRESS,
     abi: VAULT_ABI,
     functionName: "totalDeposits",
   });
 
-  const { data: userShares } = useReadContract({
+  const { data: userShares, refetch: refetchShares } = useReadContract({
     address: VAULT_ADDRESS,
     abi: VAULT_ABI,
     functionName: "balanceOf",
@@ -78,7 +91,7 @@ export default function App() {
     query: { enabled: !!address },
   });
 
-  const { data: timeInVault } = useReadContract({
+  const { data: timeInVault, refetch: refetchTime } = useReadContract({
     address: VAULT_ADDRESS,
     abi: VAULT_ABI,
     functionName: "timeInVault",
