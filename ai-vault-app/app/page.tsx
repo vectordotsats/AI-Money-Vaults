@@ -18,6 +18,12 @@ export default function App() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [mounted, setMounted] = useState(false);
 
+  const [depositStep, setDepositStep] = useState<"approve" | "deposit" | null>(
+    null,
+  );
+  const [pendingAmount, setPendingAmount] = useState<bigint>(0n);
+
+  // Use Effects.
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -26,6 +32,23 @@ export default function App() {
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash: txHash,
   });
+
+  useEffect(() => {
+    if (isSuccess && depositStep === "approve") {
+      setDepositStep("deposit");
+      writeContract({
+        address: VAULT_ADDRESS,
+        abi: VAULT_ABI,
+        functionName: "deposit",
+        args: [pendingAmount, address!],
+      });
+    }
+    if (isSuccess && depositStep === "deposit") {
+      setDepositStep(null);
+      setPendingAmount(0n);
+      setDepositAmount("");
+    }
+  }, [isSuccess, depositStep, pendingAmount, address, writeContract]);
 
   const { data: totalDeposits } = useReadContract({
     address: VAULT_ADDRESS,
@@ -49,9 +72,22 @@ export default function App() {
     query: { enabled: !!address },
   });
 
+  // async function handleDeposit() {
+  //   if (!depositAmount) return;
+  //   const amount = parseEther(depositAmount);
+  //   writeContract({
+  //     address: USDC_ADDRESS,
+  //     abi: ERC20_USDC_ABI,
+  //     functionName: "approve",
+  //     args: [VAULT_ADDRESS, amount],
+  //   });
+  // }
+
   async function handleDeposit() {
     if (!depositAmount) return;
     const amount = parseEther(depositAmount);
+    setPendingAmount(amount);
+    setDepositStep("approve");
     writeContract({
       address: USDC_ADDRESS,
       abi: ERC20_USDC_ABI,
@@ -139,9 +175,11 @@ export default function App() {
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg py-3 font-semibold transition"
               >
                 {isPending
-                  ? "Approving..."
+                  ? "Waiting..."
                   : isConfirming
-                    ? "Confirming..."
+                    ? depositStep === "approve"
+                      ? "Approving..."
+                      : "Depositing..."
                     : "Deposit"}
               </button>
             </div>
@@ -161,10 +199,12 @@ export default function App() {
                 className="w-full bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-lg py-3 font-semibold transition"
               >
                 {isPending
-                  ? "Processing..."
+                  ? "Waiting..."
                   : isConfirming
-                    ? "Confirming..."
-                    : "Withdraw"}
+                    ? depositStep === "approve"
+                      ? "Approving..."
+                      : "Depositing..."
+                    : "Deposit"}
               </button>
             </div>
           </div>
