@@ -153,8 +153,22 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
         // After Supply, the new total deployed should be, and it musn't exceed the 90% mark placed 
         uint256 newDeployed = totalDeployed + amount;
 
-        // if(totalAssets > )
+        if (totalAssets > 0 &&
+            (newDeployed * 100) / totalAssets > maxSupplyPercentage
+        ) revert ExceedsMaxSupply();
 
+        if (amount > idleTracked) revert InsufficientBalance();
+
+        // Approve Aave Pool to pull our USDC
+        usdc.safeIncreaseAllowance(address(aavePool), amount);
+
+        // Supply to Aave — we receive aUSDC in return
+        aavePool.supply(address(usdc), amount, address(this), 0);
+
+        // Update accounting
+        totalDeployed += amount;
+
+        emit SuppliedToAave(amount, totalDeployed);
     }
 
     function receiveFromVault(uint256 amount) external onlyVault {
