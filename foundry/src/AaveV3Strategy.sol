@@ -136,10 +136,10 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
     /////////// FUNCTIONS //////////////
     ////////////////////////////////////
 
-    // ====== Keeper Functions =======
+    // ====== Keeper Function (offensive — deploy capital) =======
 
     /// @notice Supply deposited USDC to Aave to earn yields
-    /// @dev Only the keeper can call these functions, 
+    /// @dev Only the keeper can call this function, 
     ///      the usdc must have already been deposited into the contract.
     /// @param amount How much usdc to be supplied to Aave
 
@@ -170,6 +170,18 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
 
         emit SuppliedToAave(amount, totalDeployed);
     }
+
+    // ====== Vault Function (defensive — return capital) =======
+
+    /// @notice Withrawing USDC from Aave to vault. 
+    /// @dev Only the vault can call this function, thisis triggered
+    ///      when user wants to withraw USDC and there's not enough balance in the vault.
+    /// @param amount How much usdc the vault need back
+
+    function withdrawToVault(uint256 amount) external onlyVault nonReentrant {
+
+    }
+
 
     function receiveFromVault(uint256 amount) external onlyVault {
         totalReceived += amount;
