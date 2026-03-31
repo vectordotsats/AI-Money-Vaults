@@ -179,7 +179,41 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
     /// @param amount How much usdc the vault need back
 
     function withdrawToVault(uint256 amount) external onlyVault nonReentrant {
+        if (amount == 0) revert ZeroAmount();
 
+        // check if there's sufficient usdc in the vault before going to aave
+        uint256 idleBalance = totalDepositedInContract - totalDeployed;
+
+        uint256 amountToBeWithrawn = 0;
+        if(amount > idleBalance) {
+            amountToBeWithrawn = amount - idleBalance; // how much we need to withdraw from Aave
+
+            // Make sure we don't try to withdraw more than what we have deployed
+            if (amountToBeWithrawn > totalDeployed) {
+                amountToBeWithrawn = totalDeployed;
+            }
+
+            uint256 actualWithdrawn = aavePool.withdraw(
+                address(usdc), 
+                amountToBeWithrawn, 
+                address(this)
+            );
+
+            totalDeployed = totalDeployed > actualWithdrawn
+                ? totalDeployed - actualWithdrawn
+                : 0;
+        }
+
+        uint256 toSend = amount;
+        uint256 available = totalDepositedInContract - totalDeployed;
+        if (toSend > available) {
+            toSend = available;
+        }
+
+        totalDepositedInContract -= toSend;
+        usdc.safeTransfer(vault, toSend);
+
+        emit WithdrawnFromAave(toSend, vault);
     }
 
 
