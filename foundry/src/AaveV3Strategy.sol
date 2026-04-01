@@ -27,7 +27,7 @@ interface IAavePool {
     /// @notice Withdraw an asset from the Aave Pool
     /// @param asset The underlying asset to withdraw
     /// @param amount  how much to be withdrawn (type(uint256).max for all)
-    /// @param to  who recieves the withrawn tokens
+    /// @param to  who recieves the withdrawn tokens
     /// @return The actual amount withdrawn
 
     function withdraw(
@@ -66,8 +66,8 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
     bool public paused; //Emergency Pause set to false by default
 
     // Accounting 
-    uint256 public totalDeployedI; // How much usdc has been deployed
-    uint256 public totalDepositednContract; // total USDC deposited into the contract
+    uint256 public totalDeployed; // How much usdc has been deployed
+    uint256 public totalDepositedInContract; // total USDC deposited into the contract
 
     // ========== Events ============
 
@@ -184,18 +184,18 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
         // check if there's sufficient usdc in the vault before going to aave
         uint256 idleBalance = totalDepositedInContract - totalDeployed;
 
-        uint256 amountToBeWithrawn = 0;
+        uint256 amountToBeWithdrawn = 0;
         if(amount > idleBalance) {
-            amountToBeWithrawn = amount - idleBalance; // how much we need to withdraw from Aave
+            amountToBeWithdrawn = amount - idleBalance; // how much we need to withdraw from Aave
 
             // Make sure we don't try to withdraw more than what we have deployed
-            if (amountToBeWithrawn > totalDeployed) {
-                amountToBeWithrawn = totalDeployed;
+            if (amountToBeWithdrawn > totalDeployed) {
+                amountToBeWithdrawn = totalDeployed;
             }
 
             uint256 actualWithdrawn = aavePool.withdraw(
                 address(usdc), 
-                amountToBeWithrawn, 
+                amountToBeWithdrawn, 
                 address(this)
             );
 
@@ -221,3 +221,25 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
         totalReceived += amount;
     }
 }
+
+
+// ====== View Functions ======
+
+/// @notice Get total USDC balance (deployed + idle)
+/// @dev aTokens are tokens + accrued interest.
+function totalStrategyAsset() public view returns (uint256) {
+    uint256 idleBalance = totalDepositedInContract - totalDeployed;
+    uint256 aTokenBalance = aUsdc.balanceOf(address(this));
+
+    return idleBalance + aTokenBalance;    
+}
+
+/// @notice Get total interest accrued in USDC
+function accruedYield() public view returns (uint256) {
+    uint256 aTokenBalance = aUsdc.balanceOf(address(this));
+    if (aTokenBalance <= totalDeployed) {
+        return 0;
+    }
+    return aTokenBalance - totalDeployed;
+}
+
