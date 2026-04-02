@@ -85,6 +85,7 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
     error IsPaused();
     error ZeroAmount();
     error ZeroAddress();
+    error WrongAddress();
     error ExceedsMaxSupply();
     error InsufficientBalance();
     error InvalidPercent();
@@ -280,3 +281,30 @@ function setPauseStatus(bool _paused) external onlyOwner {
 }
 
 /// @notice pause and unpause the contract in case of emergency 
+function emergencyWithdrawAll() external onlyOwner nonReentrant {
+    uint256 aTokenBalance = aUsdc.balanceOf(address(this));
+    if (aTokenBalance == 0) revert ZeroAmount();
+
+    uint256 withdrawn = aavePool.withdraw(
+        address(usdc),
+        type(uint256).max,
+        address(this)
+    );
+
+    // Sending directly to vault so owner never touches funds
+    totalDepositedInContract += withdrawn - totalDeployed;
+    totalDeployed = 0;
+    paused = true;
+
+    usdc.safeTransfer(vault, withdrawn);
+
+    emit EmergencyWithdraw(withdrawn);
+    emit Paused(true);
+}
+
+/// @notice In the case we need to recover tokens sent to the contract by mistake.
+/// @dev cannot rescue usdc and aUsdc - these are managed assets
+function rescueToken(address token, uint256 amount) external onlyOwner {
+    if (token == address(usdc) || token == address(aUsdc)) revert WrongAddress();
+    IERC20(token).safeTransfer(owner(), amount);
+}
