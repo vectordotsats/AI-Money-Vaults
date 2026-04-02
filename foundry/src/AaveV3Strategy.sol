@@ -227,7 +227,7 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
 
 /// @notice Get total USDC balance (deployed + idle)
 /// @dev aTokens are tokens + accrued interest.
-function totalStrategyAsset() public view returns (uint256) {
+function totalStrategyAsset() external view returns (uint256) {
     uint256 idleBalance = totalDepositedInContract - totalDeployed;
     uint256 aTokenBalance = aUsdc.balanceOf(address(this));
 
@@ -235,7 +235,7 @@ function totalStrategyAsset() public view returns (uint256) {
 }
 
 /// @notice Get total interest accrued in USDC
-function accruedYield() public view returns (uint256) {
+function accruedYield() external view returns (uint256) {
     uint256 aTokenBalance = aUsdc.balanceOf(address(this));
     if (aTokenBalance <= totalDeployed) {
         return 0;
@@ -243,3 +243,40 @@ function accruedYield() public view returns (uint256) {
     return aTokenBalance - totalDeployed;
 }
 
+///@notice Get current Usdc sitting in vault (idle balance)
+function idleBalanceInVault() external view returns (uint256) {
+    return totalDepositedInContract - totalDeployed;
+}
+
+// ====== Owner/Admin Functions ======
+
+/// @notice Update keeper address
+function updateKeeper(address _newKeeper) external onlyOwner {
+    if (_newKeeper == address(0)) revert ZeroAddress();
+    keeper = _neKeeper;
+    emit KeeperUpdated(keeper, _newKeeper);
+}
+
+/// @notice Update vault address 
+function updateVault(address _newVault) external onlyOwner {
+    if (_newVault == address(0)) revert ZeroAddress();
+    vault = _newVault;
+    emit VaultUpdated(vault, _newVault);
+}
+
+/// @notice Update the new max supply percentage guardrail
+/// @param _newPercent vaule between 0-100
+function updateMaxSupplyPercentage(uint256 _newPercent) external onlyOwner {
+    if (_newPercent > 100) revert invalidPercent();
+    maxSupplyPercentage = _newPercent;
+    emit MaxSupplyPercentUpdated(maxSupplyPercentage, _newPercent);
+}
+
+/// @notice pause and unpause the contract in case of emergency
+function setPauseStatus(bool _paused) external onlyOwner {
+    if (paused == _paused) revert IsPaused()
+    paused = _paused;
+    emit Paused(_paused);
+}
+
+/// @notice pause and unpause the contract in case of emergency 
