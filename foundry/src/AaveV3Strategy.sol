@@ -34,7 +34,7 @@ interface IAavePool {
         address asset,
         uint256 amount,
         address to
-    ) external returns (uint156);
+    ) external returns (uint256);
 }
 
 //////////////////////////////////////
@@ -50,13 +50,13 @@ interface IAavePool {
 //   - onlyVault   → withdrawToVault()
 //   - onlyOwner   → setKeeper(), setVault(), emergency functions
 
-contract AaveV3Strategy is ReentrancyGuard Ownable {
-    using SafeERC20 for IERC20
+contract AaveV3Strategy is ReentrancyGuard, Ownable {
+    using SafeERC20 for IERC20;
 
-    // ===== State Variables ==== 
-    IERC20 public immutable usdc;  // underlying asset
-    IERC20 public immutable aUsdc; // Aave's aToken - yield bearing asset
-    IAavePool public immutable aavePool;  // Aave V3 pool on Sepolia
+    // ===== State Variables ====
+    IERC20 public immutable USDC; // underlying asset
+    IERC20 public immutable aUSDC; // Aave's aToken - yield bearing asset
+    IAavePool public immutable aavePool; // Aave V3 pool on Sepolia
 
     address public vault;
     address public keeper;
@@ -65,8 +65,8 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
     uint256 public maxSupplyPercentage = 90;
     bool public paused; //Emergency Pause set to false by default
 
-    // Accounting 
-    uint256 public totalDeployed; // How much usdc has been deployed
+    // Accounting
+    uint256 public totalDeployed; // How much USDC has been deployed
     uint256 public totalDepositedInContract; // total USDC deposited into the contract
 
     // ========== Events ============
@@ -89,49 +89,49 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
     error ExceedsMaxSupply();
     error InsufficientBalance();
     error InvalidPercent();
- 
+
     // ======== Modifiers ========
     modifier onlyKeeper() {
-        if (msg.sender != keeper) revert NotKeeper();
+        _onlyKeeper();
         _;
     }
 
     modifier onlyVault() {
-        if (msg.sender != vault) revert NotVault();
+        _onlyVault();
         _;
     }
 
     modifier whenNotPaused() {
-        if (paused) revert IsPaused();
+        _whenNotPaused();
         _;
     }
 
-    // ======= Constructor ======= 
-    /// @param _usdc  // usdc token address on Sepolia 
-    /// @param _aUsdc  // aUsdc aToken address on Sepolia 
+    // ======= Constructor =======
+    /// @param _usdc  // USDC token address on Sepolia
+    /// @param _aUsdc  // aUSDC aToken address on Sepolia
     /// @param _aavePool  // Aave V3 pool address on Sepolia
     /// @param _vault  // AI Vault contract address
     /// @param _keeper   // Keeper's address
 
-    constructor (
-        address _usdc, 
-        address _aUsdc, 
-        address _aavePool, 
-        address _vault, 
-        address _keeper) Ownable(msg.sender) {
-            if(
-                _usdc == address(0) ||
-                _aUsdc == address(0) ||
-                _aavePool == address(0)
-            ) revert ZeroAddress();
-            
-            usdc = IERC20(_usdc);
-            aUsdc = IERC20(_aUsdc);
-            aavePool = IAavePool(_aavePool);
-            vault = _vault;
-            keeper = _keeper;
-    } 
+    constructor(
+        address _usdc,
+        address _aUsdc,
+        address _aavePool,
+        address _vault,
+        address _keeper
+    ) Ownable(msg.sender) {
+        if (
+            _usdc == address(0) ||
+            _aUsdc == address(0) ||
+            _aavePool == address(0)
+        ) revert ZeroAddress();
 
+        USDC = IERC20(_usdc);
+        aUSDC = IERC20(_aUsdc);
+        aavePool = IAavePool(_aavePool);
+        vault = _vault;
+        keeper = _keeper;
+    }
 
     ////////////////////////////////////
     /////////// FUNCTIONS //////////////
@@ -140,31 +140,34 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
     // ====== Keeper Function (offensive — deploy capital) =======
 
     /// @notice Supply deposited USDC to Aave to earn yields
-    /// @dev Only the keeper can call this function, 
-    ///      the usdc must have already been deposited into the contract.
-    /// @param amount How much usdc to be supplied to Aave
+    /// @dev Only the keeper can call this function,
+    ///      the USDC must have already been deposited into the contract.
+    /// @param amount How much USDC to be supplied to Aave
 
-    function supplyToAave(uint256 amount) external onlyKeeper whenNotPaused nonReentrant {
+    function supplyToAave(
+        uint256 amount
+    ) external onlyKeeper whenNotPaused nonReentrant {
         if (amount == 0) revert ZeroAmount();
 
         // Guardrail: check to se if >90% isn't being supplied to Aave
         uint256 idleTracked = totalDepositedInContract - totalDeployed;
         uint256 totalAssets = totalDepositedInContract;
 
-        // After Supply, the new total deployed should be, and it musn't exceed the 90% mark placed 
+        // After Supply, the new total deployed should be, and it musn't exceed the 90% mark placed
         uint256 newDeployed = totalDeployed + amount;
 
-        if (totalAssets > 0 &&
+        if (
+            totalAssets > 0 &&
             (newDeployed * 100) / totalAssets > maxSupplyPercentage
         ) revert ExceedsMaxSupply();
 
         if (amount > idleTracked) revert InsufficientBalance();
 
         // Approve Aave Pool to pull our USDC
-        usdc.safeIncreaseAllowance(address(aavePool), amount);
+        USDC.safeIncreaseAllowance(address(aavePool), amount);
 
         // Supply to Aave — we receive aUSDC in return
-        aavePool.supply(address(usdc), amount, address(this), 0);
+        aavePool.supply(address(USDC), amount, address(this), 0);
 
         // Update accounting
         totalDeployed += amount;
@@ -174,19 +177,19 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
 
     // ====== Vault Function (defensive — return capital) =======
 
-    /// @notice Withrawing USDC from Aave to vault. 
+    /// @notice Withrawing USDC from Aave to vault.
     /// @dev Only the vault can call this function, thisis triggered
     ///      when user wants to withraw USDC and there's not enough balance in the vault.
-    /// @param amount How much usdc the vault need back
+    /// @param amount How much USDC the vault need back
 
     function withdrawToVault(uint256 amount) external onlyVault nonReentrant {
         if (amount == 0) revert ZeroAmount();
 
-        // check if there's sufficient usdc in the vault before going to aave
+        // check if there's sufficient USDC in the vault before going to aave
         uint256 idleBalance = totalDepositedInContract - totalDeployed;
 
         uint256 amountToBeWithdrawn = 0;
-        if(amount > idleBalance) {
+        if (amount > idleBalance) {
             amountToBeWithdrawn = amount - idleBalance; // how much we need to withdraw from Aave
 
             // Make sure we don't try to withdraw more than what we have deployed
@@ -195,8 +198,8 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
             }
 
             uint256 actualWithdrawn = aavePool.withdraw(
-                address(usdc), 
-                amountToBeWithdrawn, 
+                address(USDC),
+                amountToBeWithdrawn,
                 address(this)
             );
 
@@ -212,99 +215,113 @@ contract AaveV3Strategy is ReentrancyGuard Ownable {
         }
 
         totalDepositedInContract -= toSend;
-        usdc.safeTransfer(vault, toSend);
+        USDC.safeTransfer(vault, toSend);
 
         emit WithdrawnFromAave(toSend, vault);
     }
 
-
     function receiveFromVault(uint256 amount) external onlyVault {
-        totalReceived += amount;
+        totalDepositedInContract += amount;
     }
-}
 
+    // ====== View Functions ======
 
-// ====== View Functions ======
+    /// @notice Get total USDC balance (deployed + idle)
+    /// @dev aTokens are tokens + accrued interest.
+    function totalStrategyAsset() external view returns (uint256) {
+        uint256 idleBalance = totalDepositedInContract - totalDeployed;
+        uint256 aTokenBalance = aUSDC.balanceOf(address(this));
 
-/// @notice Get total USDC balance (deployed + idle)
-/// @dev aTokens are tokens + accrued interest.
-function totalStrategyAsset() external view returns (uint256) {
-    uint256 idleBalance = totalDepositedInContract - totalDeployed;
-    uint256 aTokenBalance = aUsdc.balanceOf(address(this));
-
-    return idleBalance + aTokenBalance;    
-}
-
-/// @notice Get total interest accrued in USDC
-function accruedYield() external view returns (uint256) {
-    uint256 aTokenBalance = aUsdc.balanceOf(address(this));
-    if (aTokenBalance <= totalDeployed) {
-        return 0;
+        return idleBalance + aTokenBalance;
     }
-    return aTokenBalance - totalDeployed;
-}
 
-///@notice Get current Usdc sitting in vault (idle balance)
-function idleBalanceInVault() external view returns (uint256) {
-    return totalDepositedInContract - totalDeployed;
-}
+    /// @notice Get total interest accrued in USDC
+    function accruedYield() external view returns (uint256) {
+        uint256 aTokenBalance = aUSDC.balanceOf(address(this));
+        if (aTokenBalance <= totalDeployed) {
+            return 0;
+        }
+        return aTokenBalance - totalDeployed;
+    }
 
-// ====== Owner/Admin Functions ======
+    ///@notice Get current USDC sitting in vault (idle balance)
+    function idleBalanceInVault() external view returns (uint256) {
+        return totalDepositedInContract - totalDeployed;
+    }
 
-/// @notice Update keeper address
-function updateKeeper(address _newKeeper) external onlyOwner {
-    if (_newKeeper == address(0)) revert ZeroAddress();
-    keeper = _neKeeper;
-    emit KeeperUpdated(keeper, _newKeeper);
-}
+    // ====== Owner/Admin Functions ======
 
-/// @notice Update vault address 
-function updateVault(address _newVault) external onlyOwner {
-    if (_newVault == address(0)) revert ZeroAddress();
-    vault = _newVault;
-    emit VaultUpdated(vault, _newVault);
-}
+    /// @notice Update keeper address
+    function updateKeeper(address _newKeeper) external onlyOwner {
+        if (_newKeeper == address(0)) revert ZeroAddress();
+        address oldKeeper = keeper;
+        keeper = _newKeeper;
+        emit KeeperUpdated(oldKeeper, _newKeeper);
+    }
 
-/// @notice Update the new max supply percentage guardrail
-/// @param _newPercent vaule between 0-100
-function updateMaxSupplyPercentage(uint256 _newPercent) external onlyOwner {
-    if (_newPercent > 100) revert invalidPercent();
-    maxSupplyPercentage = _newPercent;
-    emit MaxSupplyPercentUpdated(maxSupplyPercentage, _newPercent);
-}
+    /// @notice Update vault address
+    function updateVault(address _newVault) external onlyOwner {
+        if (_newVault == address(0)) revert ZeroAddress();
+        address oldVault = vault;
+        vault = _newVault;
+        emit VaultUpdated(oldVault, _newVault);
+    }
 
-/// @notice pause and unpause the contract in case of emergency
-function setPauseStatus(bool _paused) external onlyOwner {
-    if (paused == _paused) revert IsPaused()
-    paused = _paused;
-    emit Paused(_paused);
-}
+    /// @notice Update the new max supply percentage guardrail
+    /// @param _newPercent vaule between 0-100
+    function updateMaxSupplyPercentage(uint256 _newPercent) external onlyOwner {
+        if (_newPercent > 100) revert InvalidPercent();
+        uint256 oldPercent = maxSupplyPercentage;
+        maxSupplyPercentage = _newPercent;
+        emit MaxSupplyPercentUpdated(oldPercent, _newPercent);
+    }
 
-/// @notice pause and unpause the contract in case of emergency 
-function emergencyWithdrawAll() external onlyOwner nonReentrant {
-    uint256 aTokenBalance = aUsdc.balanceOf(address(this));
-    if (aTokenBalance == 0) revert ZeroAmount();
+    /// @notice pause and unpause the contract in case of emergency
+    function setPauseStatus(bool _paused) external onlyOwner {
+        paused = _paused;
+        emit Paused(_paused);
+    }
 
-    uint256 withdrawn = aavePool.withdraw(
-        address(usdc),
-        type(uint256).max,
-        address(this)
-    );
+    /// @notice pause and unpause the contract in case of emergency
+    function emergencyWithdrawAll() external onlyOwner nonReentrant {
+        uint256 aTokenBalance = aUSDC.balanceOf(address(this));
+        if (aTokenBalance == 0) revert ZeroAmount();
 
-    // Sending directly to vault so owner never touches funds
-    totalDepositedInContract += withdrawn - totalDeployed;
-    totalDeployed = 0;
-    paused = true;
+        uint256 withdrawn = aavePool.withdraw(
+            address(USDC),
+            type(uint256).max,
+            address(this)
+        );
 
-    usdc.safeTransfer(vault, withdrawn);
+        // Sending directly to vault so owner never touches funds
+        totalDepositedInContract += withdrawn - totalDeployed;
+        totalDeployed = 0;
+        paused = true;
 
-    emit EmergencyWithdraw(withdrawn);
-    emit Paused(true);
-}
+        USDC.safeTransfer(vault, withdrawn);
 
-/// @notice In the case we need to recover tokens sent to the contract by mistake.
-/// @dev cannot rescue usdc and aUsdc - these are managed assets
-function rescueToken(address token, uint256 amount) external onlyOwner {
-    if (token == address(usdc) || token == address(aUsdc)) revert WrongAddress();
-    IERC20(token).safeTransfer(owner(), amount);
+        emit EmergencyWithdraw(withdrawn);
+        emit Paused(true);
+    }
+
+    /// @notice In the case we need to recover tokens sent to the contract by mistake.
+    /// @dev cannot rescue USDC and aUSDC - these are managed assets
+    function rescueToken(address token, uint256 amount) external onlyOwner {
+        if (token == address(USDC) || token == address(aUSDC))
+            revert WrongAddress();
+        IERC20(token).safeTransfer(owner(), amount);
+    }
+
+    // ======= Modifier functions ========
+    function _onlyKeeper() internal {
+        if (msg.sender != keeper) revert NotKeeper();
+    }
+
+    function _onlyVault() internal {
+        if (msg.sender != vault) revert NotVault();
+    }
+
+    function _whenNotPaused() internal {
+        if (paused) revert IsPaused();
+    }
 }
