@@ -51,4 +51,61 @@ contract AIVault is ERC4626, ReentrancyGaurd, Ownable {
     error ZeroWithdrawalsNotAllowed();
     error WrongReceiverAddress();
     error InsufficientIdleBalance();
+
+    // ======= Modifiers =======
+    modifier onlyKeeper() {
+        if (msg.sender != keeper || msg.sender != owner()) {
+            revert NotKeeper();
+        }
+        _;
+    }
+
+    constructor(
+        IERC20 _asset
+    ) ERC4626(_asset) ERC20("AIVault Shares", "aiVLT") {}
+
+    // ========= User Functions ==========
+
+    /// @notice Deposit USDC into the vault, receive aiVLT shares
+    function deposit(
+        uint256 amount,
+        address receiver
+    ) public override nonReentrant returns (uint256 shares) {
+        if (amount == 0) revert ZeroDepositsNotAllowed();
+        if (receiver == address(0)) revert WrongReceiverAddress();
+
+        totalDeposits += amount;
+        shares = super.deposit(amount, receiver);
+
+        emit Deposited(receiver, amount, shares);
+        return shares;
+    }
+
+    /// @notice Withdraw USDC from the vault by burning aiVLT shares
+    /// @dev    If the vault doesn't have enough idle USDC, it pulls
+    ///         the shortfall from the strategy automatically.
+    function withdraw(
+        uint256 assets,
+        address receiver,
+        address _owner
+    ) public override nonReentrant returns (uint256 shares) {
+        if (assets == 0) revert ZeroWithdrawalsNotAllowed();
+        if (receiver == address(0)) revert WrongReceiverAddress();
+
+        // Check if we need to pull funds from strategy
+        uint256 idleBalance = IERC20(asset()).balanceOf(address(this));
+
+        if (idleBalance < assets && address(strategy) != address(0)) {
+            uint256 shortfall = assets - idleBalance;
+            strategy.withdrawToVault(shortfall);
+
+            emit FundsPulledFromStrategy(shortfall);
+        }
+
+        totalDeposits -= assets;
+        shares = super.withdraw(assets, receiver, _owner);
+
+        emit Withdrawn(receiver, assets, shares);
+        return shares;
+    }
 }
