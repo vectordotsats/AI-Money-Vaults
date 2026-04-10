@@ -14,7 +14,7 @@ interface IStrategy {
     function withdrawToVault(uint256 amount) external;
 
     ///@notice This tells the strategy we sent it USDC (updates internal accounting)
-    function recieveFromVault(uint256 amount) external;
+    function receiveFromVault(uint256 amount) external;
 
     ///@notice This checks how much the strategy controls (idle + deployed + yield)
     function totalStrategyAssets() external view returns (uint256);
@@ -26,13 +26,14 @@ interface IStrategy {
 // Idle USDC can be pushed to a strategy (Aave, Morpho, etc.) to earn yields. Withdrawals pull from strategy if needed.
 // ==================================
 
-contract AIVault is ERC4626, ReentrancyGaurd, Ownable {
+contract AIVault is ERC4626, ReentrancyGuard, Ownable {
     using SafeERC20 for IERC20;
 
     // ======== State Variables ========
     IStrategy public strategy;
     address public keeper;
-    uint256 public totalDeposits;
+    uint256 public allTimeDeposits;
+    uint256 public totalIdleDeposits;
 
     // ======= Events =======
     event Deposit(address indexed user, uint256 amount, uint256 shares);
@@ -54,7 +55,7 @@ contract AIVault is ERC4626, ReentrancyGaurd, Ownable {
 
     // ======= Modifiers =======
     modifier onlyKeeper() {
-        if (msg.sender != keeper || msg.sender != owner()) {
+        if (msg.sender != keeper && msg.sender != owner()) {
             revert NotKeeper();
         }
         _;
@@ -62,7 +63,7 @@ contract AIVault is ERC4626, ReentrancyGaurd, Ownable {
 
     constructor(
         IERC20 _asset
-    ) ERC4626(_asset) ERC20("AIVault Shares", "aiVLT") {}
+    ) ERC4626(_asset) ERC20("AIVault Shares", "aiVLT") Ownable(msg.sender) {}
 
     // ========= User Functions ==========
 
@@ -74,10 +75,11 @@ contract AIVault is ERC4626, ReentrancyGaurd, Ownable {
         if (amount == 0) revert ZeroDepositsNotAllowed();
         if (receiver == address(0)) revert WrongReceiverAddress();
 
-        totalDeposits += amount;
+        allTimeDeposits += amount;
+        totalIdleDeposits += amount;
         shares = super.deposit(amount, receiver);
 
-        emit Deposited(receiver, amount, shares);
+        emit Deposit(receiver, amount, shares);
         return shares;
     }
 
@@ -93,19 +95,81 @@ contract AIVault is ERC4626, ReentrancyGaurd, Ownable {
         if (receiver == address(0)) revert WrongReceiverAddress();
 
         // Check if we need to pull funds from strategy
-        uint256 idleBalance = IERC20(asset()).balanceOf(address(this));
+        uint256 idleBalance = totalIdleDeposits;
 
         if (idleBalance < assets && address(strategy) != address(0)) {
             uint256 shortfall = assets - idleBalance;
             strategy.withdrawToVault(shortfall);
+            totalIdleDeposits += shortfall;
 
             emit FundsPulledFromStrategy(shortfall);
         }
 
-        totalDeposits -= assets;
+        totalIdleDeposits -= assets;
         shares = super.withdraw(assets, receiver, _owner);
 
-        emit Withdrawn(receiver, assets, shares);
+        emit Withdraw(receiver, assets, shares);
         return shares;
+    }
+
+    // ========= Strategy Routing Function ==========
+
+    /// @notice Push idle USDC from the vault to the strategy
+    /// @dev    Only keeper or owner can call this.
+    ///         The strategy's receiveFromVault() updates its internal accounting.
+    /// @param amount How much USDC to send to the strategy
+    function depositToStrategy(
+        uint256 amount
+    ) external onlyKeeper nonReentrant {
+        if (address(strategy) == address(0)) revert NoStrategySet();
+        if (amount == 0) revert ZeroAmount();
+
+        uint256 idleBalance = totalIdleDeposits;
+        if (amount > idleBalance) revert InsufficientIdleBalance();
+
+        IERC20(asset()).safeTransfer(address(strategy), amount);
+
+        // Tell the strategy to update its internal accounting
+        strategy.receiveFromVault(amount);
+
+        totalIdleDeposits -= amount;
+
+        emit FundsPushedToStrategy(amount);
+    }
+
+    // ====== View Functions ======
+    /// @notice Total assets the vault controls (idle USDC + strategy assets)
+    /// @dev    Overrides ERC4626's totalAssets so share price reflects
+    ///         the yield earned in the strategy.
+    function totalAssets() public view override returns (uint256) {
+        uint256 idleBalance = totalIdleDeposits;
+
+        if (address(strategy) != address(0)) {
+            return idleBalance + strategy.totalStrategyAssets();
+        }
+
+        return idleBalance;
+    }
+
+    /// @notice How much USDC is sitting idle in the vault (not deployed)
+    function idleBalance() external view returns (uint256) {
+        return IERC20(asset()).balanceOf(address(this));
+    }
+
+    // ====== Admin Functions ======
+    /// @notice Set or update the strategy contract
+    function setStrategy(address _strategy) external onlyOwner {
+        if (_strategy == address(0)) revert ZeroAddress();
+        address oldStrategy = address(strategy);
+        strategy = IStrategy(_strategy);
+        emit StrategyUpdated(oldStrategy, _strategy);
+    }
+
+    /// @notice Set or update the keeper address
+    function setKeeper(address _keeper) external onlyOwner {
+        if (_keeper == address(0)) revert ZeroAddress();
+        address oldKeeper = keeper;
+        keeper = _keeper;
+        emit KeeperUpdated(oldKeeper, _keeper);
     }
 }
