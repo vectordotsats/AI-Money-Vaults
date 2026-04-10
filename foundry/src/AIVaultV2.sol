@@ -105,8 +105,8 @@ contract AIVault is ERC4626, ReentrancyGuard, Ownable {
             emit FundsPulledFromStrategy(shortfall);
         }
 
-        totalIdleDeposits -= assets;
         shares = super.withdraw(assets, receiver, _owner);
+        totalIdleDeposits -= assets;
 
         emit Withdraw(receiver, assets, shares);
         return shares;
