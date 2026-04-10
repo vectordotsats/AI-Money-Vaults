@@ -75,9 +75,9 @@ contract AIVault is ERC4626, ReentrancyGuard, Ownable {
         if (amount == 0) revert ZeroDepositsNotAllowed();
         if (receiver == address(0)) revert WrongReceiverAddress();
 
+        shares = super.deposit(amount, receiver);
         allTimeDeposits += amount;
         totalIdleDeposits += amount;
-        shares = super.deposit(amount, receiver);
 
         emit Deposit(receiver, amount, shares);
         return shares;
