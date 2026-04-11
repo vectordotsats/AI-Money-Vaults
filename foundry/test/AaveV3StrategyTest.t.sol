@@ -209,6 +209,10 @@ contract AaveV3StrategyTest is Test {
     function test_supplyToAave_revertsInsufficientBalance() public {
         _fundStrategy(DEPOSIT_AMOUNT);
 
+        // Set max to 100% so guardrail doesn't interfere
+        strategy.updateMaxSupplyPercentage(100);
+
+        // Try to supply more than what's in the contract
         vm.prank(keeper);
         vm.expectRevert(AaveV3Strategy.InsufficientBalance.selector);
         strategy.supplyToAave(DEPOSIT_AMOUNT + 1);
@@ -618,18 +622,16 @@ contract AaveV3StrategyTest is Test {
     function test_guardrail_maxPercentageEnforced() public {
         _fundStrategy(DEPOSIT_AMOUNT);
 
-        // Supply 90% — works
         vm.prank(keeper);
         strategy.supplyToAave(900e6);
 
-        // Add more funds
         _fundStrategy(DEPOSIT_AMOUNT);
 
-        // Now totalDeposited = 2000, totalDeployed = 900
-        // Try to supply 910 more — that would be 1810/2000 = 90.5% — should revert
+        // totalDeposited = 2000, totalDeployed = 900
+        // Try to supply 920 → (1820 * 100) / 2000 = 91 > 90 → reverts
         vm.prank(keeper);
         vm.expectRevert(AaveV3Strategy.ExceedsMaxSupply.selector);
-        strategy.supplyToAave(910e6);
+        strategy.supplyToAave(920e6);
     }
 
     function test_guardrail_updatedPercentage() public {

@@ -156,10 +156,11 @@ contract AaveV3Strategy is ReentrancyGuard, Ownable {
         // After Supply, the new total deployed should be, and it musn't exceed the 90% mark placed
         uint256 newDeployed = totalDeployed + amount;
 
-        if (
-            totalAssets > 0 &&
-            (newDeployed * 100) / totalAssets > maxSupplyPercentage
-        ) revert ExceedsMaxSupply();
+        if (totalAssets > 0) {
+            if (maxSupplyPercentage == 0) revert ExceedsMaxSupply();
+            if ((newDeployed * 100) / totalAssets > maxSupplyPercentage)
+                revert ExceedsMaxSupply();
+        }
 
         if (amount > idleTracked) revert InsufficientBalance();
 
