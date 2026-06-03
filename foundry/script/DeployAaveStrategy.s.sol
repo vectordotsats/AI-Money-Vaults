@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
-import {AaveStrategy} from "../src/AaveV3Strategy.sol";
+import {AaveV3Strategy} from "../src/AaveV3Strategy.sol";
 
 contract DeployAaveStrategy is Script {
     address constant SEPOLIA_USDC = 0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8;
@@ -10,11 +10,11 @@ contract DeployAaveStrategy is Script {
     address constant SEPOLIA_AAVE_POOL =
         0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951;
 
-    function run() external returns (AaveStrategy) {
+    function run() external returns (AaveV3Strategy) {
         address keeper;
-        AaveStrategy strategy;
+        AaveV3Strategy strategy;
 
-        address deployerKey = vm.envUint("PRIVATE_KEY");
+        uint256 deployerKey = vm.envUint("PRIVATE_KEY");
         address vaultAddress = vm.envAddress("Vault_Address");
         address mockAddress = vm.envAddress("Mock_Address");
         address deployer = vm.addr(deployerKey);
@@ -22,16 +22,16 @@ contract DeployAaveStrategy is Script {
         keeper = deployer;
 
         vm.startBroadcast(deployerKey);
-        strategy = new AaveStrategy(
+        strategy = new AaveV3Strategy(
             SEPOLIA_USDC,
             SEPOLIA_AUSDC,
             SEPOLIA_AAVE_POOL,
             vaultAddress,
             keeper
-        )
+        );
         vm.stopBroadcast();
 
-         console.log("========================================");
+        console.log("========================================");
         console.log("AaveV3Strategy deployed");
         console.log("========================================");
         console.log("Strategy address:", address(strategy));
