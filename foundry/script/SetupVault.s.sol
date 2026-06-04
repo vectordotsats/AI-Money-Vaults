@@ -15,7 +15,7 @@ import {AIVault} from "../src/AIVault.sol";
 contract SetupVault is Script {
     function run() external {
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
-        address vaultAddress = vm.envAddress("VAULT_ADDRESS");
+        address vaultAddress = vm.envAddress("VAULT_ADDRESS_V2");
         address strategyAddress = vm.envAddress("STRATEGY_ADDRESS");
         address deployer = vm.addr(deployerKey);
 

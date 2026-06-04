@@ -15,8 +15,8 @@ contract DeployAaveStrategy is Script {
         AaveV3Strategy strategy;
 
         uint256 deployerKey = vm.envUint("PRIVATE_KEY");
-        address vaultAddress = vm.envAddress("Vault_Address");
-        address mockAddress = vm.envAddress("Mock_Address");
+        address vaultAddress = vm.envAddress("VAULT_ADDRESS_V2");
+        address mockAddress = vm.envAddress("MOCK_ADDRESS");
         address deployer = vm.addr(deployerKey);
 
         keeper = deployer;
