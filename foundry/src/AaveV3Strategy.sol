@@ -229,7 +229,7 @@ contract AaveV3Strategy is ReentrancyGuard, Ownable {
 
     /// @notice Get total USDC balance (deployed + idle)
     /// @dev aTokens are tokens + accrued interest.
-    function totalStrategyAsset() external view returns (uint256) {
+    function totalStrategyAssets() external view returns (uint256) {
         uint256 idleBalance = totalDepositedInContract - totalDeployed;
         uint256 aTokenBalance = aUSDC.balanceOf(address(this));
 

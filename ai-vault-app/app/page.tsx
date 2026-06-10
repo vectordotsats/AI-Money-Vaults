@@ -7,31 +7,26 @@ import {
   useWaitForTransactionReceipt,
 } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { parseEther, formatEther } from "viem";
+import { parseUnits, formatUnits } from "viem";
 import { useState, useEffect } from "react";
-import { VAULT_ADDRESS, USDC_ADDRESS } from "./constants/addresses";
-import { VAULT_ABI, ERC20_USDC_ABI } from "./constants/abi";
+import {
+  VAULT_ADDRESS,
+  USDC_ADDRESS,
+  STRATEGY_ADDRESS,
+} from "./constants/addresses";
+import { VAULT_ABI, STRATEGY_ABI, ERC20_USDC_ABI } from "./constants/abi";
 
 /* ── Utility ── */
 const fmt = (v: bigint | undefined) =>
   v
-    ? Number(formatEther(v)).toLocaleString("en-US", {
+    ? Number(formatUnits(v, 6)).toLocaleString("en-US", {
         maximumFractionDigits: 4,
       })
     : "0";
 
-const formatSeconds = (seconds: bigint) => {
-  const total = Number(seconds);
-  const d = (total / 86400) | 0;
-  const h = ((total % 86400) / 3600) | 0;
-  const m = ((total % 3600) / 60) | 0;
-  const s = total % 60;
-  const parts: string[] = [];
-  if (d) parts.push(`${d}d`);
-  if (h) parts.push(`${h}h`);
-  if (m) parts.push(`${m}m`);
-  if (s || !parts.length) parts.push(`${s}s`);
-  return parts.join(" ");
+const pct = (part: bigint | undefined, whole: bigint | undefined) => {
+  if (!part || !whole || whole === 0n) return "0";
+  return ((Number(part) / Number(whole)) * 100).toFixed(1);
 };
 
 /* ── Stat Card ── */
@@ -184,9 +179,7 @@ export default function App() {
       setDepositAmount("");
       setToastMsg("Deposit confirmed");
       setToastVisible(true);
-      refetchTotal();
-      refetchShares();
-      refetchTime();
+      refetchAll();
     }
   }, [isDepositSuccess, depositStep, pendingAmount, address, writeDeposit]);
 
@@ -195,17 +188,15 @@ export default function App() {
       setWithdrawAmount("");
       setToastMsg("Withdrawal confirmed");
       setToastVisible(true);
-      refetchTotal();
-      refetchShares();
-      refetchTime();
+      refetchAll();
     }
   }, [isWithdrawSuccess]);
 
-  /* ── Reads ── */
-  const { data: totalDeposits, refetch: refetchTotal } = useReadContract({
+  /* ── Vault Reads ── */
+  const { data: totalAssets, refetch: refetchTotal } = useReadContract({
     address: VAULT_ADDRESS,
     abi: VAULT_ABI,
-    functionName: "totalDeposits",
+    functionName: "totalAssets",
   });
 
   const { data: userShares, refetch: refetchShares } = useReadContract({
@@ -216,18 +207,46 @@ export default function App() {
     query: { enabled: !!address },
   });
 
-  const { data: timeInVault, refetch: refetchTime } = useReadContract({
+  const { data: userAssets, refetch: refetchUserAssets } = useReadContract({
     address: VAULT_ADDRESS,
     abi: VAULT_ABI,
-    functionName: "timeInVault",
-    args: [address!],
-    query: { enabled: !!address },
+    functionName: "convertToAssets",
+    args: [(userShares as bigint) ?? 0n],
+    query: { enabled: !!userShares },
   });
+
+  const { data: vaultIdle, refetch: refetchIdle } = useReadContract({
+    address: VAULT_ADDRESS,
+    abi: VAULT_ABI,
+    functionName: "totalIdleDeposits",
+  });
+
+  /* ── Strategy Reads ── */
+  const { data: totalDeployed, refetch: refetchDeployed } = useReadContract({
+    address: STRATEGY_ADDRESS,
+    abi: STRATEGY_ABI,
+    functionName: "totalDeployed",
+  });
+
+  const { data: accruedYield, refetch: refetchYield } = useReadContract({
+    address: STRATEGY_ADDRESS,
+    abi: STRATEGY_ABI,
+    functionName: "accruedYield",
+  });
+
+  const refetchAll = () => {
+    refetchTotal();
+    refetchShares();
+    refetchUserAssets();
+    refetchIdle();
+    refetchDeployed();
+    refetchYield();
+  };
 
   /* ── Handlers ── */
   async function handleDeposit() {
     if (!depositAmount) return;
-    const amount = parseEther(depositAmount);
+    const amount = parseUnits(depositAmount, 6);
     setPendingAmount(amount);
     setDepositStep("approve");
     writeDeposit({
@@ -240,7 +259,7 @@ export default function App() {
 
   async function handleWithdraw() {
     if (!withdrawAmount) return;
-    const amount = parseEther(withdrawAmount);
+    const amount = parseUnits(withdrawAmount, 6);
     writeWithdraw({
       address: VAULT_ADDRESS,
       abi: VAULT_ABI,
@@ -308,21 +327,31 @@ export default function App() {
         </header>
 
         {/* ── Stats Row ── */}
-        <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
+        <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             label="Total Value Locked"
-            value={fmt(totalDeposits as bigint | undefined)}
+            value={fmt(totalAssets as bigint | undefined)}
             unit="USDC"
             accent
           />
           <StatCard
-            label="Your Shares"
-            value={fmt(userShares as bigint | undefined)}
-            unit="aiVLT"
+            label="Your Position"
+            value={fmt(userAssets as bigint | undefined)}
+            unit="USDC"
           />
           <StatCard
-            label="Time in Vault"
-            value={timeInVault ? formatSeconds(timeInVault as bigint) : "—"}
+            label="Deployed to Aave"
+            value={fmt(totalDeployed as bigint | undefined)}
+            unit={`USDC · ${pct(
+              totalDeployed as bigint | undefined,
+              totalAssets as bigint | undefined,
+            )}%`}
+            accent
+          />
+          <StatCard
+            label="Accrued Yield"
+            value={fmt(accruedYield as bigint | undefined)}
+            unit="USDC"
           />
         </div>
 
@@ -438,9 +467,12 @@ export default function App() {
                       <p className="mb-4 text-xs text-[#7A7E8F]">
                         Available:{" "}
                         <span className="text-white">
-                          {fmt(userShares as bigint)}
+                          {fmt(userAssets as bigint | undefined)}
                         </span>{" "}
-                        aiVLT
+                        USDC{" "}
+                        <span className="text-[#3A3D4A]">
+                          ({fmt(userShares as bigint)} aiVLT)
+                        </span>
                       </p>
                     )}
 
@@ -490,6 +522,35 @@ export default function App() {
               <div className="mt-2 flex justify-between text-xs text-[#7A7E8F]">
                 <span>Share Token</span>
                 <span className="text-white/60">aiVLT</span>
+              </div>
+              <div className="mt-2 flex justify-between text-xs text-[#7A7E8F]">
+                <span>Idle in Vault</span>
+                <span className="text-white/60">
+                  {fmt(vaultIdle as bigint | undefined)} USDC
+                </span>
+              </div>
+            </div>
+
+            {/* Yield sources */}
+            <div className="mt-4 rounded-xl border border-white/[0.04] bg-[#14151A]/50 px-5 py-4">
+              <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-[#7A7E8F]">
+                Yield Sources
+              </p>
+              <div className="flex justify-between text-xs text-[#7A7E8F]">
+                <span className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  Aave V3 Lending
+                </span>
+                <span className="text-white/60">
+                  {fmt(accruedYield as bigint | undefined)} USDC earned
+                </span>
+              </div>
+              <div className="mt-2 flex justify-between text-xs text-[#7A7E8F]">
+                <span className="flex items-center gap-2">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#3A3D4A]" />
+                  Flash Loan Fees
+                </span>
+                <span className="text-white/40">Coming soon</span>
               </div>
             </div>
           </div>

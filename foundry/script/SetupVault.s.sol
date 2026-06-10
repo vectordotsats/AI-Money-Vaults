@@ -2,7 +2,7 @@
 pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
-import {AIVault} from "../src/AIVault.sol";
+import {AIVault} from "../src/AIVaultV2.sol";
 
 /// @title Setup Vault — wire vault to strategy and set keeper
 /// @notice Run AFTER both DeployAIVault and DeployAaveV3Strategy

@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {AIVault} from "../src/AIVault.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {MockUSDC} from "./mocks/MockUSDC.sol";
-import {DeployAIVault} from "../script/DeployAIVault.s.sol";
+import {DeployAIVault} from "../script/DeployAIVault_V1.s.sol";
 
 contract AIVaultTest is Test {
     address public alice = makeAddr("Alice");

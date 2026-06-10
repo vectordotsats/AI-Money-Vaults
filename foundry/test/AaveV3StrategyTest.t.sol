@@ -423,7 +423,7 @@ contract AaveV3StrategyTest is Test {
     function test_totalStrategyAsset_idleOnly() public {
         _fundStrategy(DEPOSIT_AMOUNT);
 
-        assertEq(strategy.totalStrategyAsset(), DEPOSIT_AMOUNT);
+        assertEq(strategy.totalStrategyAssets(), DEPOSIT_AMOUNT);
     }
 
     function test_totalStrategyAsset_withDeployed() public {
@@ -433,7 +433,7 @@ contract AaveV3StrategyTest is Test {
         strategy.supplyToAave(500e6);
 
         // idle (500) + aToken balance (500) = 1000
-        assertEq(strategy.totalStrategyAsset(), DEPOSIT_AMOUNT);
+        assertEq(strategy.totalStrategyAssets(), DEPOSIT_AMOUNT);
     }
 
     function test_totalStrategyAsset_withYield() public {
@@ -446,7 +446,7 @@ contract AaveV3StrategyTest is Test {
         aavePool.simulateYield(address(strategy), 50e6);
 
         // idle (500) + aToken (500 + 50 yield) = 1050
-        assertEq(strategy.totalStrategyAsset(), 1050e6);
+        assertEq(strategy.totalStrategyAssets(), 1050e6);
     }
 
     function test_accruedYield_noYield() public {
