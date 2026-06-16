@@ -1,0 +1,31 @@
+{
+  "name": "axis-keeper-bot",
+  "version": "1.0.0",
+  "description": "Autonomous keeper bot for the Axis AI-managed ERC-4626 vault. Monitors idle USDC and deploys it to the AaveV3 strategy to earn yield.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "dev": "tsx watch src/index.ts",
+    "once": "tsx src/index.ts --once",
+    "dry-run": "DRY_RUN=true tsx src/index.ts --once",
+    "wiring": "tsx scripts/wiring-check.ts",
+    "wiring:fix": "tsx scripts/wiring-check.ts --fix",
+    "e2e": "tsx scripts/e2e-test.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "node-cron": "^3.0.3",
+    "tsx": "^4.19.2",
+    "viem": "^2.21.55"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/node-cron": "^3.0.11",
+    "typescript": "^5.7.2"
+  }
+}

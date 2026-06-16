@@ -1,0 +1,36 @@
+# Render Blueprint — deploys the keeper as a background worker (no public port).
+# Set RPC_URL and PRIVATE_KEY as secret env vars in the Render dashboard.
+services:
+  - type: worker
+    name: axis-keeper-bot
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    autoDeploy: true
+    # Persist history across restarts/deploys
+    disk:
+      name: keeper-data
+      mountPath: /app/data
+      sizeGB: 1
+    envVars:
+      - key: RPC_URL
+        sync: false # set in dashboard (secret)
+      - key: PRIVATE_KEY
+        sync: false # set in dashboard (secret)
+      - key: CHAIN_ID
+        value: "11155111"
+      - key: VAULT_ADDRESS
+        value: "0x88fb46a354e4771f987c786bcacf026f0792030c"
+      - key: STRATEGY_ADDRESS
+        value: "0x635161055158b304740958811bc0d5d9999cdb57"
+      - key: USDC_ADDRESS
+        value: "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8"
+      - key: CRON_SCHEDULE
+        value: "*/5 * * * *"
+      - key: IDLE_THRESHOLD_USDC
+        value: "100"
+      - key: MIN_SUPPLY_USDC
+        value: "1"
+      - key: HISTORY_FILE
+        value: "/app/data/history.json"
